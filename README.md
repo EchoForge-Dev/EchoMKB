@@ -3,7 +3,7 @@
 Midnight Network knowledge for coding agents — searched **live** from [docs.midnight.network](https://docs.midnight.network) on every use, with cited URLs and a version-drift report.
 
 ```sh
-npx skills add Charlie0113-T/EchoMKB
+npx skills add EchoForge-Dev/EchoMKB
 ```
 
 Works with every agent the [skills CLI](https://github.com/vercel-labs/skills) supports (Claude Code, Cursor, Codex, Copilot, Gemini CLI, …). Node ≥ 18, zero dependencies.
