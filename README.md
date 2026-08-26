@@ -2,6 +2,9 @@
 
 Midnight Network knowledge for coding agents — searched **live** from [docs.midnight.network](https://docs.midnight.network) on every use, with cited URLs and a version-drift report.
 
+> [!NOTE]
+> This project extends the Midnight Network with additional developer tooling.
+
 ```sh
 npx skills add EchoForge-Dev/EchoMKB
 ```
@@ -29,6 +32,10 @@ node skills/echomkb/scripts/echomkb.mjs versions
 ## Privacy
 
 Only `docs.midnight.network` is contacted for search/page; `versions` additionally runs `npm view` and calls `api.github.com`. Nothing from your repository leaves your machine.
+
+## Credits
+
+Built on the official Midnight documentation, which exposes [`llms.txt`](https://docs.midnight.network/llms.txt) and per-page `.md` endpoints. The offline snapshot in `skills/echomkb/kb/` is generated from EchoForge's own [MIDNIGHT_KB](https://m.echoforgeef.com/kb). Installation is handled by the [skills CLI](https://github.com/vercel-labs/skills) from Vercel Labs.
 
 ## Links
 
