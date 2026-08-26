@@ -34,4 +34,4 @@ Only `docs.midnight.network` is contacted for search/page; `versions` additional
 
 Intro page: https://m.echoforgeef.com/echomkb · Human-readable KB: https://m.echoforgeef.com/kb · EchoForge: https://echoforgeef.com
 
-MIT © 2026 EchoForge
+Apache-2.0 © 2026 EchoForge

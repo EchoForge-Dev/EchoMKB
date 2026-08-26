@@ -46,4 +46,4 @@ Requires Node ≥ 18 (global `fetch`). No dependencies. Scripts live next to thi
 
 ## Provenance
 
-Built by EchoForge (m.echoforgeef.com/echomkb) as the agent-facing twin of the human-readable MIDNIGHT_KB (m.echoforgeef.com/kb). Source: https://github.com/Charlie0113-T/EchoMKB · MIT.
+Built by EchoForge (m.echoforgeef.com/echomkb) as the agent-facing twin of the human-readable MIDNIGHT_KB (m.echoforgeef.com/kb). Source: https://github.com/Charlie0113-T/EchoMKB · Apache-2.0.
