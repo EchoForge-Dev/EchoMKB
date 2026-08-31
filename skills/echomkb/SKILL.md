@@ -7,10 +7,11 @@ description: Midnight Network knowledge for coding agents — Compact language, 
 
 Your training data about Midnight and Compact is stale and partly wrong. This skill exists so you never answer from memory: **every use starts with a live search of docs.midnight.network**, and every fact you state carries the URL it came from.
 
-Requires Node ≥ 18 (global `fetch`). No dependencies. Scripts live next to this file in `scripts/`. Contacts only `docs.midnight.network`, plus `registry.npmjs.org` (via `npm view`) and `api.github.com` for the `versions` command; nothing from the user's project is sent anywhere.
+Requires Node ≥ 18 (global `fetch`). No dependencies. Scripts live next to this file in `scripts/`. Contacts only `docs.midnight.network`, plus `registry.npmjs.org` (via `npm view`) and `api.github.com` for the `versions` command, and one anonymous handshake to `midnight.mcp.kapa.ai` for `doctor`; nothing from the user's project is sent anywhere.
 
 ## Protocol (do this in order, every time)
 
+0. **Kapa first, if you have it.** The official Kapa MCP server (`midnight` · `https://midnight.mcp.kapa.ai`, the docs site's own Ask-AI index) answers "what do the docs say" better than any local ranking. If your session has its tools: ask it one canary question whose answer you can check (e.g. *"Which Compact function marks witness data for public disclosure?"* — a usable answer names `disclose`). If the canary passes, use Kapa for doc-semantic questions and this skill's `versions`/`page` for version drift and citable URLs. If the tool is absent, errors, or hangs, **say** "Kapa MCP not responding — using EchoMKB live search" and continue with step 1; `doctor` tells you whether the endpoint is down or your OAuth session just expired (they look identical from inside a client). Never fall back silently.
 1. **Search live first.**
    `node <skill-dir>/scripts/echomkb.mjs search "<3–8 words describing the task>"`
    Run 2–3 searches with different wording if the first is thin. Use `--section compact`, `--section api-reference`, `--section guides` … to focus. Identifier-style queries (`persistentHash`, `deployContract`, `MerkleTree`) automatically favour API reference pages.
@@ -34,7 +35,7 @@ Requires Node ≥ 18 (global `fetch`). No dependencies. Scripts live next to thi
 | `page <path-or-url> [--max-chars N]` | Full page as markdown (`.md` endpoint; strips HTML if a page has none). |
 | `versions [--no-npm] [--no-github] [--json]` | Support matrix per network vs release-notes latest vs npm latest vs GitHub latest, with a drift column. |
 | `index` | Sections of the live docs index with counts — orient yourself before searching. |
-| `doctor` | Connectivity + cache check (cache in the OS temp dir, 15 min for the index, 60 min for pages; `--fresh` bypasses). |
+| `doctor` | Connectivity + cache check, plus a Kapa MCP endpoint probe that separates "endpoint down" from "your OAuth session is missing/expired" (cache in the OS temp dir, 15 min for the index, 60 min for pages; `--fresh` bypasses). |
 
 ## Hard rules
 

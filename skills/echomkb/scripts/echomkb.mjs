@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 // EchoMKB — live Midnight docs search for coding agents.
-// Zero dependencies. Node >= 18 (global fetch). MIT. https://m.echoforgeef.com/echomkb
+// Zero dependencies. Node >= 18 (global fetch). Apache-2.0. https://m.echoforgeef.com/echomkb
 //
 //   node echomkb.mjs search <query...>   rank docs pages from the live llms.txt index, fetch the top hits, print cited excerpts
 //   node echomkb.mjs page <path|url>     print one docs page as markdown (tries .md, falls back to stripped HTML)
 //   node echomkb.mjs versions            support-matrix (tested) vs release notes / npm / GitHub (latest) — drift table
 //   node echomkb.mjs index               overview of the live docs index (sections + counts)
-//   node echomkb.mjs doctor              connectivity + cache check
+//   node echomkb.mjs doctor              connectivity + Kapa MCP endpoint probe + cache check
 //
 // Flags: --json  --fresh (ignore cache)  --max N (ranked pages, default 8)  --fetch N (pages to open, default 3)
 //        --section NAME (restrict to an llms.txt section, e.g. compact)  --no-npm  --no-github  --max-chars N
 //
-// Only three hosts are ever contacted: docs.midnight.network, registry.npmjs.org (via `npm view`), api.github.com.
-// Nothing from the caller's repository is sent anywhere.
+// Hosts contacted: docs.midnight.network; `versions` adds registry.npmjs.org (via `npm view`) + api.github.com;
+// `doctor` adds one anonymous MCP handshake to midnight.mcp.kapa.ai. Nothing from the caller's repository is sent anywhere.
 
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, readdirSync } from 'node:fs';
@@ -21,6 +21,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const DOCS = 'https://docs.midnight.network';
+const KAPA = 'https://midnight.mcp.kapa.ai'; // official Kapa MCP server (docs' own Ask-AI index); OAuth-protected as of 2026-08-31
 const UA = 'EchoMKB/0.1 (+https://m.echoforgeef.com/echomkb)';
 const CACHE_DIR = join(tmpdir(), 'echomkb-cache');
 const TTL = { index: 15 * 60e3, page: 60 * 60e3, api: 30 * 60e3 };
@@ -348,14 +349,45 @@ async function cmdIndex() {
   }
 }
 
+async function probeKapa() {
+  // Anonymous MCP `initialize` handshake. The point is to make silent failure legible:
+  // a 401 Bearer challenge means the endpoint is UP and the agent's problem is a missing/expired OAuth session,
+  // which looks identical to "down" from inside most MCP clients.
+  const started = Date.now();
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    const r = await fetch(KAPA, {
+      method: 'POST',
+      headers: { 'user-agent': UA, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'echomkb-doctor', version: '0.1' } } }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    const ms = Date.now() - started;
+    if (r.status === 401 && /bearer/i.test(r.headers.get('www-authenticate') || '')) return { state: 'up-auth-required', http: 401, ms };
+    if (r.ok) return { state: 'up-open', http: r.status, ms };
+    return { state: 'unexpected', http: r.status, ms };
+  } catch (e) {
+    return { state: 'down', ms: Date.now() - started, error: String(e.message || e).slice(0, 160) };
+  }
+}
+
 async function cmdDoctor() {
   const started = Date.now();
-  const r = await fetchText(`${DOCS}/llms.txt`, 0);
+  const [r, kapa] = await Promise.all([fetchText(`${DOCS}/llms.txt`, 0), probeKapa()]);
   const n = parseIndex(r.text).length;
   let files = 0; try { files = readdirSync(CACHE_DIR).length; } catch {}
-  const out = { node: process.version, docs: `${DOCS}/llms.txt`, status: r.status, entries: n, ms: Date.now() - started, cacheDir: CACHE_DIR, cachedFiles: files, ok: r.status === 200 && n > 100 };
+  const out = { node: process.version, docs: `${DOCS}/llms.txt`, status: r.status, entries: n, ms: Date.now() - started, cacheDir: CACHE_DIR, cachedFiles: files, kapa: { endpoint: KAPA, ...kapa }, ok: r.status === 200 && n > 100 };
   if (JSON_OUT) return console.log(JSON.stringify(out, null, 2));
-  console.log(`EchoMKB doctor\n  node        ${out.node}\n  index       ${out.docs} → HTTP ${out.status}, ${out.entries} entries, ${out.ms} ms\n  cache       ${out.cacheDir} (${out.cachedFiles} files)\n  verdict     ${out.ok ? 'OK — live docs reachable' : 'FAIL — fall back to kb/MIDNIGHT_KB.md and say the answer is from a dated snapshot'}`);
+  const kapaLine = { 'up-auth-required': `UP, OAuth required (401 Bearer challenge, ${kapa.ms} ms)`, 'up-open': `UP, no auth required (HTTP ${kapa.http}, ${kapa.ms} ms)`, unexpected: `UNEXPECTED — HTTP ${kapa.http} (${kapa.ms} ms)`, down: `DOWN — ${kapa.error} (${kapa.ms} ms)` }[kapa.state];
+  const kapaAdvice = {
+    'up-auth-required': 'endpoint UP but OAuth-protected — if your agent has a `midnight` MCP server that fails silently, its OAuth session is missing or expired; re-authenticate in your client (Claude Code: /mcp). With a working session, prefer Kapa for "what do the docs say"; this skill covers version drift + cited URLs.',
+    'up-open': 'endpoint UP and open — if your agent has the `midnight` MCP server, prefer it for "what do the docs say"; this skill covers version drift + cited URLs.',
+    unexpected: 'endpoint answered oddly — treat Kapa as unavailable, say so, and use this skill’s live search.',
+    down: 'endpoint unreachable — Kapa MCP is not an option right now; say so and use this skill’s live search.',
+  }[kapa.state];
+  console.log(`EchoMKB doctor\n  node        ${out.node}\n  index       ${out.docs} → HTTP ${out.status}, ${out.entries} entries, ${out.ms} ms\n  kapa mcp    ${KAPA} → ${kapaLine}\n  cache       ${out.cacheDir} (${out.cachedFiles} files)\n  verdict     ${out.ok ? 'OK — live docs reachable' : 'FAIL — fall back to kb/MIDNIGHT_KB.md and say the answer is from a dated snapshot'}\n  kapa        ${kapaAdvice}`);
   if (!out.ok) process.exitCode = 1;
 }
 
