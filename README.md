@@ -22,6 +22,8 @@ Works with every agent the [skills CLI](https://github.com/vercel-labs/skills) s
 
 The skill's protocol (in [`skills/echomkb/SKILL.md`](skills/echomkb/SKILL.md)) forces the agent to search before answering, read whole pages before quoting, cite every claim, and report both "tested" and "newest" on version questions. Offline fallback is a dated English snapshot of EchoForge's MIDNIGHT_KB, and the agent must say when it is used.
 
+What the docs *can't* answer — observed live-network behavior, dated and version-pinned — is in [OBSERVATIONS.md](OBSERVATIONS.md).
+
 Try it without installing:
 
 ```sh
