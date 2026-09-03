@@ -13,6 +13,8 @@ Works with every agent the [skills CLI](https://github.com/vercel-labs/skills) s
 
 **v0.2 (2026-09-03).** Repositioned after the docs maintainers' review: the official [Kapa MCP server](https://docs.midnight.network/ai-integration/kapa-mcp-server) answers *what the docs say*; EchoMKB now hands that question to Kapa when the session has it, and keeps the parts Kapa does not do — supported-vs-released versions per network, page stamps and URLs, a probe that tells you when Kapa is silently dead, and a dated ledger of live-network behavior. The bundled snapshot is gone (it rotted, as predicted).
 
+**One loop.** *Find answers* — [Kapa MCP](https://docs.midnight.network/ai-integration/kapa-mcp-server) · *Build it* — [Midnight Expert](https://docs.midnight.network/ai-integration/midnight-expert) · *Go further* — community skills such as [Midnight-skills](https://github.com/Kali-Decoder/Midnight-skills) · *Report it* — EchoMKB. What the live networks do that the docs don't say goes back upstream as an issue, so the next answer Kapa gives is better.
+
 ## What it does
 
 | | |
