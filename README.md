@@ -1,6 +1,6 @@
 # EchoMKB
 
-Midnight Network knowledge for coding agents — searched **live** from [docs.midnight.network](https://docs.midnight.network) on every use, with cited URLs and a version-drift report.
+The layer under the Midnight docs, for coding agents — **which versions each network actually supports**, **a citable URL for every claim**, and **what the live networks do that the docs don't say**. Everything is fetched at answer time from [docs.midnight.network](https://docs.midnight.network); nothing is bundled, nothing is recalled.
 
 > [!NOTE]
 > This project extends the Midnight Network with additional developer tooling.
@@ -11,24 +11,28 @@ npx skills add EchoForge-Dev/EchoMKB
 
 Works with every agent the [skills CLI](https://github.com/vercel-labs/skills) supports (Claude Code, Cursor, Codex, Copilot, Gemini CLI, …). Node ≥ 18, zero dependencies.
 
+**v0.2 (2026-09-03).** Repositioned after the docs maintainers' review: the official [Kapa MCP server](https://docs.midnight.network/ai-integration/kapa-mcp-server) answers *what the docs say*; EchoMKB now hands that question to Kapa when the session has it, and keeps the parts Kapa does not do — supported-vs-released versions per network, page stamps and URLs, a probe that tells you when Kapa is silently dead, and a dated ledger of live-network behavior. The bundled snapshot is gone (it rotted, as predicted).
+
 ## What it does
 
 | | |
 |---|---|
 | `search <query>` | live `llms.txt` index (≈1,300 pages) → ranked pages → opened → heading-anchored excerpts with URLs |
-| `page <url>` | one docs page as markdown |
-| `versions` | support matrix (tested) vs release notes / npm / GitHub (latest) — drift column |
-| `index` · `doctor` | orientation · connectivity + Kapa MCP endpoint probe (is it down, or is your OAuth session dead? — the two look identical from inside an MCP client) |
+| `page <url>` | one docs page as markdown, with its "language X, compiler Y" stamp |
+| `versions` | support matrix per network (**supported**) vs relnotes / npm / GitHub (**released**) — and the docs page stamp vs the supported toolchain |
+| `doctor` | connectivity + Kapa MCP endpoint probe: is it down, or is your OAuth session dead? (the two look identical from inside an MCP client) |
+| `index` | sections of the live docs index |
 
-The skill's protocol (in [`skills/echomkb/SKILL.md`](skills/echomkb/SKILL.md)) forces the agent to search before answering, read whole pages before quoting, cite every claim, and report both "tested" and "newest" on version questions. Offline fallback is a dated English snapshot of EchoForge's MIDNIGHT_KB, and the agent must say when it is used.
+The skill's protocol (in [`skills/echomkb/SKILL.md`](skills/echomkb/SKILL.md)) makes the agent try Kapa first and fall back *out loud*, read whole pages before quoting, cite every claim, and report both "supported" and "released" on version questions — the matrix lagging the newest release is the normal state, not a warning.
 
-What the docs *can't* answer — observed live-network behavior, dated and version-pinned — is in [OBSERVATIONS.md](OBSERVATIONS.md).
+What the docs *can't* answer — observed live-network behavior, dated and version-pinned, plus the method for filing the next one upstream — is in [OBSERVATIONS.md](OBSERVATIONS.md).
 
 Try it without installing:
 
 ```sh
-node skills/echomkb/scripts/echomkb.mjs search "disclose witness ledger write"
 node skills/echomkb/scripts/echomkb.mjs versions
+node skills/echomkb/scripts/echomkb.mjs doctor
+node skills/echomkb/scripts/echomkb.mjs search "disclose witness ledger write"
 ```
 
 ## Privacy
@@ -37,7 +41,7 @@ Only `docs.midnight.network` is contacted for search/page; `versions` additional
 
 ## Credits
 
-Built on the official Midnight documentation, which exposes [`llms.txt`](https://docs.midnight.network/llms.txt) and per-page `.md` endpoints. The offline snapshot in `skills/echomkb/kb/` is generated from EchoForge's own [MIDNIGHT_KB](https://m.echoforgeef.com/kb). Installation is handled by the [skills CLI](https://github.com/vercel-labs/skills) from Vercel Labs.
+Built on the official Midnight documentation, which exposes [`llms.txt`](https://docs.midnight.network/llms.txt) and per-page `.md` endpoints, and next to the official Kapa MCP server, which this skill defers to for documentation questions. Installation is handled by the [skills CLI](https://github.com/vercel-labs/skills) from Vercel Labs.
 
 ## Links
 

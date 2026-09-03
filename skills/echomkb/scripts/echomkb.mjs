@@ -4,7 +4,7 @@
 //
 //   node echomkb.mjs search <query...>   rank docs pages from the live llms.txt index, fetch the top hits, print cited excerpts
 //   node echomkb.mjs page <path|url>     print one docs page as markdown (tries .md, falls back to stripped HTML)
-//   node echomkb.mjs versions            support-matrix (tested) vs release notes / npm / GitHub (latest) — drift table
+//   node echomkb.mjs versions            support matrix (supported, per network) vs relnotes / npm / GitHub (released) — status table
 //   node echomkb.mjs index               overview of the live docs index (sections + counts)
 //   node echomkb.mjs doctor              connectivity + Kapa MCP endpoint probe + cache check
 //
@@ -22,7 +22,7 @@ import { execFileSync } from 'node:child_process';
 
 const DOCS = 'https://docs.midnight.network';
 const KAPA = 'https://midnight.mcp.kapa.ai'; // official Kapa MCP server (docs' own Ask-AI index); OAuth-protected as of 2026-08-31
-const UA = 'EchoMKB/0.1 (+https://m.echoforgeef.com/echomkb)';
+const UA = 'EchoMKB/0.2 (+https://m.echoforgeef.com/echomkb)';
 const CACHE_DIR = join(tmpdir(), 'echomkb-cache');
 const TTL = { index: 15 * 60e3, page: 60 * 60e3, api: 30 * 60e3 };
 const STOP = new Set('a an and are as at be by for from how in into is it of on or that the this to what when where which with does do can i my your you use using'.split(' '));
@@ -228,7 +228,7 @@ async function cmdSearch() {
     if (!p.excerpts.length) { L.push('(page opened; no paragraph matched the query tokens — read it with `echomkb page ' + p.url + '`)'); continue; }
     for (const x of p.excerpts) { if (x.heading) L.push(`> ${x.heading}`); L.push(x.text, ''); }
   }
-  L.push('---', 'Cite the URL you relied on. Live docs override any bundled snapshot and anything recalled from training data.', 'Open a full page: `echomkb page <url>` · Version drift: `echomkb versions`');
+  L.push('---', 'Cite the URL you relied on. Live docs override anything recalled from training data.', 'Open a full page: `echomkb page <url>` · Supported vs released versions: `echomkb versions`');
   console.log(L.join('\n'));
 }
 
@@ -309,29 +309,49 @@ async function cmdVersions() {
     if (c.local) row.local = c.local;
     rows.push(row);
   }
-  const out = { fetchedAt: new Date().toISOString(), matrixUrl: `${DOCS}/relnotes/support-matrix`, matrixLastUpdated: matrix.lastUpdated, matrixSource: mx.source, rows };
-  if (JSON_OUT) return console.log(JSON.stringify(out, null, 2));
   const nets = Object.keys(matrix.networks);
+  // Status semantics (changed 2026-09-03 after the docs maintainers' review of #1270): the matrix lagging the
+  // newest release is the NORMAL state — a release lands on npm/GitHub first and reaches the matrix after testing.
+  // So "released, not yet supported" is information, not a warning; the supported column is what you pin.
+  for (const r of rows) {
+    const supported = nets.map(n => r.matrix[n]).filter(v => v && v !== '—');
+    const top = supported.reduce((a, b) => (semverCmp(b, a) > 0 ? b : a), supported[0] || '');
+    const released = [...new Set([r.relnote?.version, (r.npm || '').split(' ')[0], (r.github || '').replace(/^[^0-9]*/, '').split(' ')[0]].filter(Boolean))];
+    const ahead = top ? released.filter(v => semverCmp(v, top) > 0) : [];
+    const behind = !!(top && r.relnote?.version && semverCmp(r.relnote.version, top) < 0);
+    r.status = !top ? 'not in matrix' : ahead.length ? `released, not yet supported on any network (${ahead.join(', ')})` : 'newest = supported';
+    if (behind) r.status += ' · relnotes page behind matrix';
+  }
+  // Docs pages are stamped with the compiler they were written for; compare against what the networks support.
+  let stamp = null;
+  try {
+    const sp = await fetchText(`${DOCS}/compact/data-types/ledger-adt.md`);
+    const m = /Compact language version ([\d.]+), compiler version ([\d.]+)/.exec(sp.text);
+    if (m) stamp = { language: m[1], compiler: m[2], url: `${DOCS}/compact/data-types/ledger-adt`, source: sp.source };
+  } catch {}
+  const tc = rows.find(r => r.component === 'Compact toolchain');
+  const docsAhead = !!(stamp && tc && nets.some(n => tc.matrix[n] && semverCmp(stamp.compiler, tc.matrix[n]) > 0));
+  const out = { fetchedAt: new Date().toISOString(), matrixUrl: `${DOCS}/relnotes/support-matrix`, matrixLastUpdated: matrix.lastUpdated, matrixSource: mx.source, docsStamp: stamp ? { ...stamp, aheadOfSupportedToolchain: docsAhead } : null, rows };
+  if (JSON_OUT) return console.log(JSON.stringify(out, null, 2));
   const L = [];
-  L.push('# EchoMKB · versions — tested (support matrix) vs latest (relnotes / npm / GitHub)');
+  L.push('# EchoMKB · versions — supported (support matrix, per network) vs released (relnotes / npm / GitHub)');
   L.push(`FETCHED ${out.fetchedAt} · matrix: ${out.matrixUrl}${matrix.lastUpdated ? ' (page says last updated ' + matrix.lastUpdated + ')' : ''} · ${mx.source}`);
-  L.push('', `| Component | ${nets.map(n => 'Matrix ' + n).join(' | ')} | Relnotes latest | npm latest | GitHub latest | Drift |`);
+  L.push('', `| Component | ${nets.map(n => 'Supported ' + n).join(' | ')} | Relnotes latest | npm latest | GitHub latest | Status |`);
   L.push(`|---|${nets.map(() => '---').join('|')}|---|---|---|---|`);
   for (const r of rows) {
     const mv = nets.map(n => r.matrix[n] || '—');
     const rel = r.relnote ? (r.relnote.version ? r.relnote.version + (r.relnote.language ? ` (lang ${r.relnote.language})` : '') + (r.relnote.date ? ', ' + r.relnote.date : '') : (r.relnote.error ? 'fetch error' : '?')) : '—';
-    const baseline = mv.find(v => v && v !== '—') || '';
-    const latests = [r.relnote?.version, r.npm.split(' ')[0], (r.github || '').replace(/^[^0-9]*/, '').split(' ')[0]].filter(Boolean);
-    let drift = '';
-    if (baseline) {
-      const newer = latests.filter(v => semverCmp(v, baseline) > 0);
-      const older = r.relnote?.version && semverCmp(r.relnote.version, baseline) < 0;
-      drift = newer.length ? `⚠ newer than matrix (${[...new Set(newer)].join(', ')})` : 'in sync';
-      if (older) drift += (newer.length ? '; ' : ' · ') + 'relnotes page behind matrix';
-    }
-    L.push(`| ${r.component} | ${mv.join(' | ')} | ${rel} | ${r.npm || '—'} | ${r.github || '—'} | ${drift} |`);
+    L.push(`| ${r.component} | ${mv.join(' | ')} | ${rel} | ${r.npm || '—'} | ${r.github || '—'} | ${r.status} |`);
   }
-  L.push('', 'Reading the table:', '- The support matrix lists **tested / supported** combinations — deploy against these.', '- Relnotes / npm / GitHub show what is **newest**; "⚠ newer than matrix" means a release channel moved ahead of the matrix — say so explicitly when answering version questions, and quote the docs page stamp for syntax.', '- Per-component relnotes pages can lag the matrix or use a different version line (e.g. Wallet SDK relnotes track `wallet-sdk-facade`, the matrix tracks the SDK) — the matrix is the deploy authority; always cite the page you read.', '- Compiler ↔ runtime must match exactly; pin `@midnight-ntwrk/*` without ^/~. Local checks: `compact check`, `compact self check`, `npm view <pkg> version`.');
+  if (stamp) {
+    L.push('', `Docs page stamp: Compact language ${stamp.language}, compiler ${stamp.compiler} (${stamp.url}). Supported toolchain: ${nets.map(n => `${n} ${tc?.matrix[n] || '—'}`).join(', ')}.`);
+    if (docsAhead) L.push('→ The docs are written for a newer compiler than any network supports. Syntax quoted from the docs may not compile on the supported toolchain: pin the supported version, compile, and quote the page stamp next to any syntax you cite.');
+  }
+  L.push('', 'Reading the table:',
+    '- **Supported** = the support matrix, per network — tested combinations. Deploy against the column for your target network; pin exactly.',
+    '- **Released** (relnotes / npm / GitHub) = what exists. A release lands there first and reaches the matrix after testing, so "released, not yet supported on any network" is the expected state, not a warning — it usually means the newest version is the one you must *not* pin yet.',
+    '- Per-component relnotes pages can lag the matrix or track a different line (Wallet SDK relnotes track `wallet-sdk-facade`; the matrix tracks the SDK) — the matrix is the deploy authority; cite the page you read.',
+    '- Compiler ↔ runtime must match exactly; pin `@midnight-ntwrk/*` without ^/~. Local checks: `compact check`, `compact self check`, `npm view <pkg> version`.');
   console.log(L.join('\n'));
 }
 
@@ -382,12 +402,12 @@ async function cmdDoctor() {
   if (JSON_OUT) return console.log(JSON.stringify(out, null, 2));
   const kapaLine = { 'up-auth-required': `UP, OAuth required (401 Bearer challenge, ${kapa.ms} ms)`, 'up-open': `UP, no auth required (HTTP ${kapa.http}, ${kapa.ms} ms)`, unexpected: `UNEXPECTED — HTTP ${kapa.http} (${kapa.ms} ms)`, down: `DOWN — ${kapa.error} (${kapa.ms} ms)` }[kapa.state];
   const kapaAdvice = {
-    'up-auth-required': 'endpoint UP but OAuth-protected — if your agent has a `midnight` MCP server that fails silently, its OAuth session is missing or expired; re-authenticate in your client (Claude Code: /mcp). With a working session, prefer Kapa for "what do the docs say"; this skill covers version drift + cited URLs.',
-    'up-open': 'endpoint UP and open — if your agent has the `midnight` MCP server, prefer it for "what do the docs say"; this skill covers version drift + cited URLs.',
+    'up-auth-required': 'endpoint UP but OAuth-protected — if your agent has a `midnight` MCP server that fails silently, its OAuth session is missing or expired; re-authenticate in your client (Claude Code: /mcp). With a working session, prefer Kapa for "what do the docs say"; this skill covers supported-vs-released versions + cited URLs.',
+    'up-open': 'endpoint UP and open — if your agent has the `midnight` MCP server, prefer it for "what do the docs say"; this skill covers supported-vs-released versions + cited URLs.',
     unexpected: 'endpoint answered oddly — treat Kapa as unavailable, say so, and use this skill’s live search.',
     down: 'endpoint unreachable — Kapa MCP is not an option right now; say so and use this skill’s live search.',
   }[kapa.state];
-  console.log(`EchoMKB doctor\n  node        ${out.node}\n  index       ${out.docs} → HTTP ${out.status}, ${out.entries} entries, ${out.ms} ms\n  kapa mcp    ${KAPA} → ${kapaLine}\n  cache       ${out.cacheDir} (${out.cachedFiles} files)\n  verdict     ${out.ok ? 'OK — live docs reachable' : 'FAIL — fall back to kb/MIDNIGHT_KB.md and say the answer is from a dated snapshot'}\n  kapa        ${kapaAdvice}`);
+  console.log(`EchoMKB doctor\n  node        ${out.node}\n  index       ${out.docs} → HTTP ${out.status}, ${out.entries} entries, ${out.ms} ms\n  kapa mcp    ${KAPA} → ${kapaLine}\n  cache       ${out.cacheDir} (${out.cachedFiles} files)\n  verdict     ${out.ok ? 'OK — live docs reachable' : 'FAIL — live docs unreachable. Only this tool’s own dated page cache (labelled stale-cache) may be used, and the answer must say so; never answer from memory'}\n  kapa        ${kapaAdvice}`);
   if (!out.ok) process.exitCode = 1;
 }
 
