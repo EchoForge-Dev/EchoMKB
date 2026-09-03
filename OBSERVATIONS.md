@@ -11,7 +11,7 @@ How each entry was produced, and the checklist for producing the next one when b
 1. **Pin the environment quadruple** before anything else: network · node/indexer versions · wallet-SDK + dust-wallet versions · whether the failing circuit *reads* or *writes* ledger state.
 2. **Reproduce on a second network.** When the *same* asymmetry shows up on two different networks, suspect the mechanism they share before the code that differs.
 3. **Search existing issues first** — `midnightntwrk/*` and `input-output-hk/lace`. Read what sits above your entry; two of the four seeds below already existed since May.
-4. **Report upstream** using the skeleton of [BUGREPORT.md](https://github.com/EchoForge-Dev/EchoCert_Midnight_Demo/blob/main/BUGREPORT.md): status · pinned environment · reproduction · evidence · how it was misdiagnosed · what the SDK should do · open questions.
+4. **Report upstream** using the skeleton of [BUGREPORT.md](https://github.com/EchoForge-Dev/EchoCert_Midnight_Demo/blob/main/BUGREPORT.md): status · pinned environment · reproduction · evidence · how it was misdiagnosed · what the SDK should do · open questions. An agent may draft the issue and submit it (e.g. with `gh issue create`), but only after a human has read the final text and explicitly said to file it — the issue carries the human's name. wallet#700 and lace#2257 below were filed exactly this way.
 
 Debugging order that held up in practice: **sync state first** (shielded / unshielded / dust progress and completeness), then registration, then transactions. Every misdiagnosis of that weekend started from not being able to see sync state.
 
