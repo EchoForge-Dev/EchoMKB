@@ -50,6 +50,6 @@ Built on the official Midnight documentation, which exposes [`llms.txt`](https:/
 
 ## Links
 
-Intro page: https://m.echoforgeef.com/echomkb · Human-readable KB: https://m.echoforgeef.com/kb · EchoForge: https://echoforgeef.com
+Listed in the Midnight docs: https://docs.midnight.network/sdks/community/ai-tools/echomkb · Intro page: https://m.echoforgeef.com/echomkb · Human-readable KB: https://m.echoforgeef.com/kb · EchoForge: https://echoforgeef.com
 
 Apache-2.0 © 2026 EchoForge
