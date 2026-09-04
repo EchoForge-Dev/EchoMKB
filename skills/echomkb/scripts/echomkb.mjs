@@ -5,7 +5,7 @@
 //   node echomkb.mjs search <query...>   rank docs pages from the live llms.txt index, fetch the top hits, print cited excerpts
 //   node echomkb.mjs page <path|url>     print one docs page as markdown (tries .md, falls back to stripped HTML)
 //   node echomkb.mjs versions            support matrix (supported, per network) vs relnotes / npm / GitHub (released) — status table
-//   node echomkb.mjs issues <words...>    live GitHub issue search (midnightntwrk/*, lace, compact) + matching OBSERVATIONS.md entries with live state
+//   node echomkb.mjs issues <words...>    live GitHub issue search over the upstream trackers (midnightntwrk/*, lace, compact) — before debugging, before filing
 //   node echomkb.mjs index               overview of the live docs index (sections + counts)
 //   node echomkb.mjs doctor              connectivity + Kapa MCP endpoint probe + cache check
 //
@@ -412,10 +412,9 @@ async function cmdDoctor() {
   if (!out.ok) process.exitCode = 1;
 }
 
-// ---------- issues: upstream trackers + the observations ledger ----------
+// ---------- issues: the upstream trackers, live ----------
 const ISSUE_ORG = 'midnightntwrk';
 const ISSUE_EXTRA_REPOS = ['input-output-hk/lace', 'LFDT-Minokawa/compact'];
-const LEDGER_API = 'https://api.github.com/repos/EchoForge-Dev/EchoMKB/contents/OBSERVATIONS.md';
 
 async function ghSearchIssues(q) {
   const r = await fetchText(`https://api.github.com/search/issues?q=${encodeURIComponent(q)}&per_page=10&sort=updated`, TTL.api);
@@ -426,46 +425,25 @@ async function ghSearchIssues(q) {
     return { total: j.total_count || 0, items: (j.items || []).map(i => ({ repo: (i.repository_url || '').split('/repos/')[1] || '', number: i.number, state: i.state, title: i.title, url: i.html_url, updated: (i.updated_at || '').slice(0, 10), comments: i.comments })) };
   } catch { return { error: 'bad json', total: 0, items: [] }; }
 }
-function parseLedger(md) {
-  const body = md.split('\n## Ledger')[1] || md;
-  return body.split(/\n### /).slice(1).map(block => {
-    const [head, ...lines] = block.split('\n');
-    const link = /\[([^\]]+)\]\(([^)]+)\)/.exec(head);
-    const field = k => (lines.find(l => l.toLowerCase().startsWith(`- **${k}`)) || '').replace(/^- \*\*[^*]+\*\*:?\s*/, '');
-    return { id: link ? link[1] : head.trim(), url: link ? link[2] : '', title: head.replace(/^\[[^\]]+\]\([^)]+\)\s*·\s*/, '').trim(), workaround: field('workaround') || field('observed workaround'), status: field('status'), text: block.toLowerCase() };
-  });
-}
 async function cmdIssues() {
   const q = rest.join(' ').trim();
   if (!q) die('usage: echomkb issues <words describing the failure — symptom, error code, component>');
   const max = parseInt(flags.max || '8', 10);
-  const [ledgerRes, s1, s2] = await Promise.all([
-    fetchText(LEDGER_API, TTL.api).then(r => { try { const j = JSON.parse(r.text); return { md: Buffer.from(j.content, 'base64').toString('utf8'), source: r.source }; } catch { return { md: '', source: 'unavailable' }; } }),
+  const [s1, s2] = await Promise.all([
     ghSearchIssues(`${q} is:issue org:${ISSUE_ORG}`),
     ghSearchIssues(`${q} is:issue ${ISSUE_EXTRA_REPOS.map(r => 'repo:' + r).join(' ')}`),
   ]);
-  const toks = tokenize(q).map(stem);
-  const need = toks.length >= 3 ? 2 : 1; // with a longer query, one shared word ("error", "wallet") is not a match
-  const ledger = parseLedger(ledgerRes.md).map(e => ({ ...e, hits: toks.filter(t => e.text.includes(t)).length })).filter(e => e.hits >= need).sort((a, b) => b.hits - a.hits);
-  // anti-rot: show the live tracker state next to each matched ledger entry, so a stale 'OPEN' is visible the moment it is wrong
-  await Promise.all(ledger.map(async e => {
-    const m = /github\.com\/([^/]+\/[^/]+)\/issues\/(\d+)/.exec(e.url);
-    if (!m) return;
-    try { const r = await fetchText(`https://api.github.com/repos/${m[1]}/issues/${m[2]}`, TTL.api); if (r.status === 200) { const j = JSON.parse(r.text); e.live = `${j.state}${j.state_reason ? ' (' + j.state_reason + ')' : ''}, ${j.comments} comments, updated ${(j.updated_at || '').slice(0, 10)}`; } } catch {}
-  }));
   const upstream = [...s1.items, ...s2.items].sort((a, b) => (b.updated > a.updated ? 1 : b.updated < a.updated ? -1 : 0)).slice(0, max);
   const rateLimited = !!(s1.rateLimited || s2.rateLimited);
-  const out = { query: q, fetchedAt: new Date().toISOString(), ledgerSource: ledgerRes.source, ledger: ledger.map(({ text, ...e }) => e), upstream, upstreamTotal: (s1.total || 0) + (s2.total || 0), rateLimited, searched: [`org:${ISSUE_ORG}`, ...ISSUE_EXTRA_REPOS] };
+  const out = { query: q, fetchedAt: new Date().toISOString(), searched: [`org:${ISSUE_ORG}`, ...ISSUE_EXTRA_REPOS], total: (s1.total || 0) + (s2.total || 0), upstream, rateLimited };
   if (JSON_OUT) return console.log(JSON.stringify(out, null, 2));
-  const L = [`# EchoMKB · issues — "${q}"`, `FETCHED ${out.fetchedAt} · upstream: GitHub issue search over ${out.searched.join(', ')} · ledger: OBSERVATIONS.md (${ledgerRes.source})`, ''];
-  L.push(`## In the observations ledger (${ledger.length})`);
-  if (!ledger.length) L.push(ledgerRes.md ? '(no entry matches — this may be new)' : '(ledger unavailable)');
-  for (const e of ledger) { L.push(`- **${e.id}** · ${e.title}${e.url ? ' — ' + e.url : ''}`); if (e.workaround) L.push(`  workaround: ${e.workaround}`); if (e.status) L.push(`  status (ledger): ${e.status}`); if (e.live) L.push(`  status (live): ${e.live}`); }
-  L.push('', `## Upstream issues (live, ${upstream.length} of ${out.upstreamTotal})`);
+  const L = [`# EchoMKB · issues — "${q}"`, `FETCHED ${out.fetchedAt} · GitHub issue search over ${out.searched.join(', ')} · ${upstream.length} of ${out.total}, newest first`, ''];
   if (rateLimited) L.push('GitHub search rate-limited (10 requests/min anonymous) — retry in a minute.');
   else if (!upstream.length) L.push('(no open or closed issue matches these words — try fewer, more specific words: the error code, the component, the symptom)');
   else { L.push('| Repo | # | State | Updated | Comments | Title |', '|---|---|---|---|---|---|'); for (const i of upstream) L.push(`| ${i.repo} | [${i.number}](${i.url}) | ${i.state} | ${i.updated} | ${i.comments} | ${i.title.replace(/\|/g, '\\|')} |`); }
-  L.push('', 'Before filing anything: read what sits above your entry. If nothing here matches, follow the method at the top of OBSERVATIONS.md (pin the environment quadruple → reproduce on a second network → search again with the exact error → report with the BUGREPORT skeleton). File only after the human has read the final text and said so — the issue carries their name.');
+  L.push('', 'Before filing anything: open the closest matches and read them — the failure may be known, and a comment with your environment and observation on an existing issue is worth more than a duplicate.',
+    'If nothing matches: pin the environment (network · node/indexer versions · wallet-SDK + dust-wallet versions · read-only or writing circuit) → reproduce on a second network → search again with the exact error text → write the report (environment · reproduction · evidence · what you ruled out · what the SDK should do · open questions).',
+    'File only after the human has read the final text and said so — the issue carries their name.');
   console.log(L.join('\n'));
 }
 
