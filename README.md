@@ -22,24 +22,26 @@ Works with every agent the [skills CLI](https://github.com/vercel-labs/skills) s
 | `search <query>` | live `llms.txt` index (≈1,300 pages) → ranked pages → opened → heading-anchored excerpts with URLs |
 | `page <url>` | one docs page as markdown, with its "language X, compiler Y" stamp |
 | `versions` | support matrix per network (**supported**) vs relnotes / npm / GitHub (**released**) — and the docs page stamp vs the supported toolchain |
+| `issues <words>` | live GitHub issue search over the upstream trackers (`midnightntwrk/*`, `input-output-hk/lace`, `LFDT-Minokawa/compact`) + matching `OBSERVATIONS.md` entries with their workaround and the issue's live state — run it before debugging from scratch and before filing a duplicate |
 | `doctor` | connectivity + Kapa MCP endpoint probe: is it down, or is your OAuth session dead? (the two look identical from inside an MCP client) |
 | `index` | sections of the live docs index |
 
 The skill's protocol (in [`skills/echomkb/SKILL.md`](skills/echomkb/SKILL.md)) makes the agent try Kapa first and fall back *out loud*, read whole pages before quoting, cite every claim, and report both "supported" and "released" on version questions — the matrix lagging the newest release is the normal state, not a warning.
 
-What the docs *can't* answer — observed live-network behavior, dated and version-pinned, plus the method for filing the next one upstream — is in [OBSERVATIONS.md](OBSERVATIONS.md).
+What the docs *can't* answer — observed live-network behavior, dated and version-pinned, plus the method for filing the next one upstream — is in [OBSERVATIONS.md](OBSERVATIONS.md). `issues` reads it from GitHub at run time and shows each entry's live tracker state next to it, so the installed skill never carries a stale copy and a stale entry is visible the moment it is wrong.
 
 Try it without installing:
 
 ```sh
 node skills/echomkb/scripts/echomkb.mjs versions
 node skills/echomkb/scripts/echomkb.mjs doctor
+node skills/echomkb/scripts/echomkb.mjs issues "read-only circuit zero fee"
 node skills/echomkb/scripts/echomkb.mjs search "disclose witness ledger write"
 ```
 
 ## Privacy
 
-Only `docs.midnight.network` is contacted for search/page; `versions` additionally runs `npm view` and calls `api.github.com`; `doctor` additionally sends one anonymous MCP handshake to `midnight.mcp.kapa.ai` (no credentials, no content). Nothing from your repository leaves your machine.
+Only `docs.midnight.network` is contacted for search/page; `versions` additionally runs `npm view` and calls `api.github.com`; `issues` calls `api.github.com` only; `doctor` additionally sends one anonymous MCP handshake to `midnight.mcp.kapa.ai` (no credentials, no content). Nothing from your repository leaves your machine.
 
 ## Credits
 
