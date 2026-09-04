@@ -1,12 +1,13 @@
 # EchoMKB
 
-The layer under the Midnight docs, for coding agents — **which versions each network actually supports**, **a citable URL for every claim**, and **the loop back upstream** when the network does something the docs don't say: search the trackers first, report after the human approves. Everything is fetched at answer time; nothing is bundled, nothing is recalled.
+The layer under the Midnight docs, for coding agents — **which versions each network actually supports**, **a citable URL for every claim**, and **the loop back upstream** when the network does something the docs don't say: search the trackers first, report after the human approves. Everything is fetched at answer time; nothing is bundled, nothing is recalled. If a source is unreachable the agent says so: rather no answer than a wrong one.
 
 > [!NOTE]
 > This project extends the Midnight Network with additional developer tooling.
 
 ```sh
-npx skills add EchoForge-Dev/EchoMKB
+npx skills add EchoForge-Dev/EchoMKB     # install
+npx skills update echomkb                # later: pull the latest
 ```
 
 Works with every agent the [skills CLI](https://github.com/vercel-labs/skills) supports (Claude Code, Cursor, Codex, Copilot, Gemini CLI, …). Node ≥ 18, zero dependencies.
